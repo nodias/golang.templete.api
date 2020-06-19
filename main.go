@@ -1,27 +1,43 @@
 package main
 
 import (
-	"./database"
-	"./router"
-	"github.com/nodias/golang.templete.common/logger"
-	"github.com/nodias/golang.templete.common/middleware"
-	"github.com/nodias/golang.templete.common/model"
+	"context"
+	"github.com/gorilla/mux"
+	"github.com/nodias/golang.templete.api/interface/rest"
+	"github.com/nodias/golang.templete.api/registry"
+	"github.com/nodias/golang.templete.common/models"
+	"github.com/nodias/golang.templete.common/shared/logger"
+	"github.com/nodias/golang.templete.common/shared/repository"
 
 	"github.com/urfave/negroni"
 )
 
-var config model.TomlConfig
+var config models.TomlConfig
 
 func init() {
-	model.Load("config/%s/config.toml")
-	config = *model.GetConfig()
+	config.Load("config/%s/config.toml")
+	config = *models.GetConfig()
 	logger.Init()
-	database.Init()
-	database.NewOpenDB()
+	repository.Init()
+	repository.NewOpenDB()
 }
 
 func main() {
-	n := negroni.New(negroni.HandlerFunc(middleware.Logging(config.Logconfig.Logpath)))
-	n.UseHandler(router.NewRouter())
-	n.Run(config.Servers["ApmExam3"].PORT)
+	log := logger.New(context.Background())
+
+	ctn, err := registry.NewContainer()
+	if err != nil {
+		log.Fatalf("failed to build container %v", err)
+	}
+
+	router := mux.NewRouter()
+
+	rest.Apply(router, ctn)
+
+	n := negroni.New()
+	n.UseHandler(router)
+	log.Info("Server - Server On!")
+	n.Run(config.Servers["api"].PORT)
 }
+
+
